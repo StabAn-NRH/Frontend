@@ -1,5 +1,7 @@
+// src/types/chat.ts
 // 프롬프트 타입 정의
-export type PromptType = 'gentle' | 'reliable' | 'cheerful' | 'smart';
+export type PromptType = 'friendly' | 'active' | 'pleasant' | 'reliable';
+
 
 // 프롬프트 설정 인터페이스
 export interface PromptConfig {

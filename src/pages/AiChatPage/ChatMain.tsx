@@ -1,5 +1,6 @@
+// src/pages/HomePage/ChatMain.tsx
 import React, { useState } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNavigation } from '@react-navigation/native';
@@ -9,9 +10,38 @@ import ChatInput from '../../components/chat/ChatInput';
 import { useChat } from '../../contexts/ChatContext';
 import { ChatStackParamList } from '../../types/navigation';
 import { ChatStyles} from '../../styles/ChatStyles';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ChatMainNavigationProp = NativeStackNavigationProp<ChatStackParamList, 'ChatMain'>;
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
 
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
+/* 로그아웃에 사용. 저장한 토큰 삭제(보안 때문에 필수적)
+export async function clearTokens(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem('@tokens');
+    console.log('토큰 삭제 완료');
+  } catch (e) {
+    console.error('토큰 삭제 실패:', e);
+  }
+}
+*/
 const ChatMain = () => {
   const navigation = useNavigation<ChatMainNavigationProp>();
   const { addMessage } = useChat();
@@ -24,10 +54,44 @@ const ChatMain = () => {
     addMessage({ role: 'user', content: message });
 
     // TODO: ChatGPT API 호출
-    setTimeout(() => {
+    setTimeout( async () => {
+      const tokens = await getStoredTokens();
+      const apiRes = await fetch(
+              'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/chats/messages',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  // 백엔드에서 요구한다면 주석 해제
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+                body: JSON.stringify({
+                  // 🔧 FIX: 서버가 요구하는 키는 idToken 입니다.
+                  message: message,
+                  chat_list_num: 2, //임시
+                  enable_tts: false,
+                }),
+              }
+          );
+
+      if (!apiRes.ok) {
+          let errorText = '';
+          try {
+            const ejson = await apiRes.json();
+            errorText = JSON.stringify(ejson);
+            console.error('채팅 메인화면 실패 응답(JSON):', ejson);
+          } catch {
+            errorText = await apiRes.text();
+            console.error('채팅 메인화면 실패 응답(텍스트):', errorText);
+          }
+          Alert.alert('채팅 메인화면 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+          return;
+      }
+      const data = await apiRes.json();
+      const aiMessage = data.ai?.message || '응답이 없습니다.';
       addMessage({
         role: 'assistant',
-        content: '안녕하세요! 무엇을 도와드릴까요?',
+        content: aiMessage,
       });
       setIsLoading(false);
       navigation.navigate('ChatRoom');

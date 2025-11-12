@@ -1,3 +1,4 @@
+// src/contexts/ChatContext.tsx
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { Chat, Message, PromptType } from '../types/chat';
 
@@ -10,6 +11,7 @@ interface ChatContextType {
   addMessage: (message: Omit<Message, 'id' | 'timestamp'>) => void;
   selectChat: (chatId: string) => void;
   deleteChats: (chatIds: string[]) => void;
+  setAllChats: (chatList: Chat[]) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -30,6 +32,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setChats((prev) => [newChat, ...prev]);
     setCurrentChat(newChat);
   };
+
 
   const addMessage = (message: Omit<Message, 'id' | 'timestamp'>) => {
     const newMessage: Message = {
@@ -90,6 +93,9 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const setAllChats = (chatList: Chat[]) => {
+      setChats(chatList);
+  };
   return (
     <ChatContext.Provider
       value={{
@@ -101,6 +107,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addMessage,
         selectChat,
         deleteChats,
+        setAllChats,
       }}
     >
       {children}

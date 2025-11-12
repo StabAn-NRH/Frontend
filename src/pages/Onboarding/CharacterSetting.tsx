@@ -70,10 +70,10 @@ export default function CharacterSetting({ route, navigation }: any) {
       // await api.createCharacter(characterData);
 
       // ✅ 온보딩 완료 플래그 저장
-      await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
+      //await AsyncStorage.setItem('hasCompletedOnboarding', 'true');
 
       // ✅ 임시 토큰 저장 (실제로는 로그인/회원가입 시 받은 토큰 사용)
-      await AsyncStorage.setItem('userToken', 'temp_token_123');
+      //await AsyncStorage.setItem('userToken', 'temp_token_123');
 
       Alert.alert(
         '완료',
@@ -84,7 +84,10 @@ export default function CharacterSetting({ route, navigation }: any) {
             onPress: () => {
               // ✅ RootNavigator가 자동으로 MainTabNavigator로 전환됨
               // navigation.reset 대신 단순 navigate 사용
-              navigation.navigate('Main');
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Main' }],
+              });
             }
           }
         ]

@@ -159,7 +159,7 @@ export default function SignUpStep3Screen({ route, navigation }: any) {
 
             // 3. 백엔드 서버에 회원가입 요청
             console.log('백엔드 회원가입 요청 시작...');
-            const response = await fetch("http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8000/auth/signup", {
+            const response = await fetch("http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/auth/signup", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

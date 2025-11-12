@@ -1,3 +1,4 @@
+// src/pages/HomePage/PromptSettings.tsx
 import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
@@ -8,8 +9,28 @@ import { useChat } from '../../contexts/ChatContext';
 import { PromptType } from '../../types/chat';
 import { promptConfigs } from '../../utils/promptHelper';
 import { ChatStackParamList } from '../../types/navigation';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 type PromptSettingsNavigationProp = NativeStackNavigationProp<ChatStackParamList, 'PromptSettings'>;
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
+
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
+
 
 const PromptSettings = () => {
   const navigation = useNavigation<PromptSettingsNavigationProp>();
@@ -23,13 +44,62 @@ const PromptSettings = () => {
     setSelectedPrompt(promptType);
   };
 
-  const handleSave = () => {
+
+  /*const apiRes = await fetch(
+          'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/auth/login',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+               // 백엔드에서 요구한다면 주석 해제
+               Authorization: `Bearer ${tokens.accessToken}`,
+            },
+            body: JSON.stringify({
+              // 🔧 FIX: 서버가 요구하는 키는 idToken 입니다.
+              idToken: tokens.idToken,
+            }),
+          }
+        );
+*/
+  const handleSave = async () => {
     // 저장 버튼을 눌렀을 때만 실제로 프롬프트를 저장
     setCurrentPrompt(selectedPrompt);
+
+    const tokens = await getStoredTokens();
+    const apiRes = await fetch(
+        'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/ai/preferences',
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            // 백엔드에서 요구한다면 주석 해제
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+          body: JSON.stringify({
+            personality: selectedPrompt,
+          }),
+        }
+    );
+
+    if (!apiRes.ok) {
+        let errorText = '';
+        try {
+          const ejson = await apiRes.json();
+          errorText = JSON.stringify(ejson);
+          console.error('로그인 실패 응답(JSON):', ejson);
+        } catch {
+          errorText = await apiRes.text();
+          console.error('로그인 실패 응답(텍스트):', errorText);
+        }
+        Alert.alert('로그인 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+        return;
+    }
+
+
     navigation.goBack();
   };
 
-  const promptTypes: PromptType[] = ['gentle', 'reliable', 'cheerful', 'smart'];
+  const promptTypes: PromptType[] = ['friendly', 'active', 'pleasant', 'reliable'];
 
   return (
     <SafeAreaView style={styles.container}>

@@ -1,11 +1,7 @@
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
-<<<<<<< HEAD
-=======
 apply from: "../../node_modules/react-native-vector-icons/fonts.gradle"
-
->>>>>>> db993bc2795fa5f827ec51b3eeeac9df5cd3aff3
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.

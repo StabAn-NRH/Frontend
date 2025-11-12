@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, Text, TouchableOpacity, FlatList, StyleSheet, Alert } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -10,15 +10,93 @@ import { ChatStackParamList } from '../../types/navigation';
 import { ChatStyles } from '../../styles/ChatStyles';
 import { colors } from '../../styles/colors';
 import ScaledText from '../../components/ScaledText';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ChatListNavigationProp = NativeStackNavigationProp<ChatStackParamList, 'ChatList'>;
 
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
+
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
 const ChatList = () => {
+
   const navigation = useNavigation<ChatListNavigationProp>();
   const { chats, selectChat, deleteChats } = useChat();
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  //const [tokens, setTokens] = useState<Tokens | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [allChats, setAllChats] = useState<Chat[]>([]);
+  // 데이터 불러오기
+  useEffect(() => {
+      const fetchTokensAndChats = async () => {
+          try {
+              const tokens = await getStoredTokens();
+              //setTokens(storedTokens);
 
+
+              const apiRes = await fetch(
+                  'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/chats/lists',
+                  {
+                    method: 'GET',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      // 백엔드에서 요구한다면 주석 해제
+                      Authorization: `Bearer ${tokens.accessToken}`,
+                    },
+                  }
+              );
+
+              if (!apiRes.ok) {
+                  const text = await apiRes.text();
+                  console.error('서버 오류:', text);
+                  Alert.alert('오류', '서버 응답 오류');
+              }
+
+              console.log(apiRes);
+              const chatData = await apiRes.json();
+
+              const convertedChats: Chat[] = chatData.map((item: any) => ({
+                  id: item.chat_list_num.toString(),
+                  title: item.last_message,
+                  date: new Date(item.last_date),
+                  messages: [],
+                  prompt: "reliable"      // 임시
+              }));
+
+              setAllChats(convertedChats);
+
+          } catch (e) {
+            console.error('데이터 불러오기 실패:', e);
+          } finally {
+            setLoading(false);
+          }
+      };
+      fetchTokensAndChats();
+  }, []);
+
+  if (loading) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>로딩 중...</Text>
+        </View>
+      );
+  }
   const handleChatPress = (chat: Chat) => {
     if (isSelectionMode) {
       toggleSelection(chat.id);
@@ -124,7 +202,7 @@ const ChatList = () => {
         </View>
       ) : (
         <FlatList
-          data={chats}
+          data={allChats}
           renderItem={renderChatItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}

@@ -1,7 +1,7 @@
 // src/navigation/MainNavigator.tsx
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MainTabNavigator from '../components/MainTabNavigator';
+import MainTabNavigator from './MainTabNavigator';
 import SettingsPage from '../pages/HomePage/SettingsPage';
 import NotificationPage from '../pages/HomePage/NotificationPage';
 import HealthPage from '../pages/HealthPage/HealthPage';

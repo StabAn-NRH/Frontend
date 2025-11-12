@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+// src/pages/HomePage/ChatRoom.tsx
+import React, { useState, useRef, useEffect } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { View, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -8,15 +9,101 @@ import ChatBubble from '../../components/chat/ChatBubble';
 import ChatInput from '../../components/chat/ChatInput';
 import { useChat } from '../../contexts/ChatContext';
 import { ChatStackParamList } from '../../types/navigation';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ChatRoomNavigationProp = NativeStackNavigationProp<ChatStackParamList, 'ChatRoom'>;
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
+
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
+/* 로그아웃에 사용. 저장한 토큰 삭제(보안 때문에 필수적)
+export async function clearTokens(): Promise<void> {
+  try {
+    await AsyncStorage.removeItem('@tokens');
+    console.log('토큰 삭제 완료');
+  } catch (e) {
+    console.error('토큰 삭제 실패:', e);
+  }
+}
+*/
 
 const ChatRoom = () => {
   const navigation = useNavigation<ChatRoomNavigationProp>();
-  const { currentChat, addMessage } = useChat();
+  const { currentChat, addMessage, setAllChats } = useChat();
   const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
+  /*
+  useEffect(() => {
+    const fetchTokensAndChats = async () => {
+        try {
+            const tokens = await getStoredTokens();
+            //setTokens(storedTokens);
 
+
+            const apiRes = await fetch(
+                'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/chats/lists/1',
+                { // 임시 파라미터(1번방)
+                  method: 'GET',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    // 백엔드에서 요구한다면 주석 해제
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                }
+            );
+
+            if (!apiRes.ok) {
+                const text = await apiRes.text();
+                console.error('서버 오류:', text);
+                Alert.alert('오류', '서버 응답 오류');
+            }
+
+            console.log(apiRes);
+            const chatRecord = await apiRes.json();
+
+            const convertedChats: Chat[] = chatData.map((item: any) => ({
+                 id: item.chat_list_num.toString(),
+                 title: item.message,
+                 date: new Date(item.chat_date),
+                 messages: item.message,
+                 prompt: "reliable"      // 임시
+            }));
+
+
+        } catch (e) {
+          console.error('데이터 불러오기 실패:', e);
+        } finally {
+          setLoading(false);
+        }
+    };
+    fetchTokensAndChats();
+  }, []);
+
+    if (loading) {
+        return (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <Text>로딩 중...</Text>
+          </View>
+        );
+    }
+
+  */
   const handleSendMessage = async (message: string) => {
     setIsLoading(true);
 
@@ -29,12 +116,45 @@ const ChatRoom = () => {
     }, 100);
 
     // TODO: ChatGPT API 호출
-    setTimeout(() => {
-      addMessage({
-        role: 'assistant',
-        content:
-          '알겠습니다. 오늘의 주요 뉴스를 정리해드리면 다음과 같습니다.\n\n1. 이스라엘과 하마스 간 전쟁이 공식적으로 종료되었습니다. 생존 인질 전원 석방과 함께 대규모 포로 교환이 이루어졌다고 양측이 발표했습니다.\n\n2. 미국과 중국 간 무역 긴장이 완화되는 조짐을 보이고 있습니다. 특히 선박 운임 및 수출 통제 관련 협의가 진행 중입니다.',
-      });
+    setTimeout( async () => {
+        const tokens = await getStoredTokens();
+        const apiRes = await fetch(
+                'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/chats/messages',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    // 백엔드에서 요구한다면 주석 해제
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                  body: JSON.stringify({
+                    // 🔧 FIX: 서버가 요구하는 키는 idToken 입니다.
+                    message: message,
+                    chat_list_num: 2, //임시
+                    enable_tts: false,
+                  }),
+                }
+            );
+
+        if (!apiRes.ok) {
+            let errorText = '';
+            try {
+              const ejson = await apiRes.json();
+              errorText = JSON.stringify(ejson);
+              console.error('채팅방 실패 응답(JSON):', ejson);
+            } catch {
+              errorText = await apiRes.text();
+              console.error('채팅방 실패 응답(텍스트):', errorText);
+            }
+            Alert.alert('채팅방 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+            return;
+        }
+        const data = await apiRes.json();
+        const aiMessage = data.ai?.message || '응답이 없습니다.';
+        addMessage({
+          role: 'assistant',
+          content: aiMessage,
+        });
       setIsLoading(false);
 
       setTimeout(() => {
