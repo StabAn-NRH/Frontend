@@ -8,6 +8,27 @@ import { healthStyles } from '../../styles/Health';
 
 const STORAGE_KEY = '@health_diary_entries';
 
+
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
+
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
+
 export default function HealthDiaryEntry() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -24,22 +45,43 @@ export default function HealthDiaryEntry() {
   const month = monthParam || (today.getMonth() + 1);
   const day = dateParam || today.getDate();
 
-  // YYYY/MM/DD 형식으로 날짜 생성
-  const currentDate = `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+  // YYYY-MM-DD 형식으로 날짜 생성
+  const currentDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
   useEffect(() => {
     loadEntry();
   }, [currentDate]);
 
   const loadEntry = async () => {
+    console.log(currentDate);
     try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const entries = JSON.parse(stored);
-        if (entries[currentDate]) {
-          setEntry(entries[currentDate]);
-        }
-      }
+        const tokens = await getStoredTokens();
+        const apiRes = await fetch(
+                      `http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/health/memos?requested_date=${currentDate}`,
+                      {
+                        method: 'GET',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          Authorization: `Bearer ${tokens.accessToken}`,
+                        },
+                      }
+                    );
+              if (!apiRes.ok) {
+                  let errorText = '';
+                  try {
+                    const ejson = await apiRes.json();
+                    errorText = JSON.stringify(ejson);
+                    console.error('일지 불러오기 실패 응답(JSON):', ejson);
+                  } catch {
+                    errorText = await apiRes.text();
+                    console.error('일지 불러오기 실패 응답(텍스트):', errorText);
+                  }
+                  Alert.alert('일지 불러오기 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+                  return;
+              }
+              console.log(apiRes);
+              const response = await apiRes.json();
+              setEntry(response);
     } catch (error) {
       console.error('일지 불러오기 실패:', error);
     }
@@ -61,6 +103,36 @@ export default function HealthDiaryEntry() {
     }
     try {
       await saveEntry();
+      const tokens = await getStoredTokens();
+      console.log(currentDate);
+      const apiRes = await fetch(
+              'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/health/memos',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+                body: JSON.stringify({
+                  memo_date: currentDate,
+                  memo_text: entry,
+                }),
+              }
+            );
+      if (!apiRes.ok) {
+          let errorText = '';
+          try {
+            const ejson = await apiRes.json();
+            errorText = JSON.stringify(ejson);
+            console.error('일지 저장 실패 응답(JSON):', ejson);
+          } catch {
+            errorText = await apiRes.text();
+            console.error('일지 저장 실패 응답(텍스트):', errorText);
+          }
+          Alert.alert('일지 저장 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+          return;
+      }
+      console.log(apiRes);
       Alert.alert('성공', '건강 일지가 저장되었습니다!', [
         { text: '확인', onPress: () => navigation.goBack() },
       ]);

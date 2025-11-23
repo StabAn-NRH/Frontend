@@ -1,10 +1,30 @@
 // src/pages/HealthPage/ManualMedicationEntry.tsx
 import React, { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Image, TextInput, Modal } from 'react-native';
+import { View, ScrollView, TouchableOpacity, Image, TextInput, Modal, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ScaledText from '../../components/ScaledText';
 import { healthStyles } from '../../styles/Health';
+
+type Tokens = {
+    accessToken: string;
+    idToken: string;
+    refreshToken: string;
+};
+
+async function getStoredTokens(): Promise<Tokens | null> {
+    try {
+        const json = await AsyncStorage.getItem('@tokens');
+        //console.log(json);
+        if (!json) return null;
+
+        const tokens: Tokens = JSON.parse(json);
+        return tokens;
+    } catch (e) {
+        console.error('토큰 불러오기 실패:', e);
+        return null;
+    }
+}
 
 const MEDICATION_STORAGE_KEY = '@medication_data';
 
@@ -33,12 +53,12 @@ export default function ManualMedicationEntry() {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
-    return `${year}/${month}/${day}`;
+    return `${year}-${month}-${day}`;
   };
 
   const parseDate = (dateStr: string): Date => {
     if (!dateStr) return new Date();
-    const [year, month, day] = dateStr.split('/').map(Number);
+    const [year, month, day] = dateStr.split('-').map(Number);
     return new Date(year, month - 1, day);
   };
 
@@ -150,6 +170,37 @@ export default function ManualMedicationEntry() {
       }
 
       await AsyncStorage.setItem(MEDICATION_STORAGE_KEY, JSON.stringify(existingData));
+      const tokens = await getStoredTokens();
+      const apiRes = await fetch(
+                'http://ec2-15-165-129-83.ap-northeast-2.compute.amazonaws.com:8002/health/medicine',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${tokens.accessToken}`,
+                  },
+                  body: JSON.stringify({
+                    medicine_name: medicationName,
+                    medicine_daily: frequency,
+                    medicine_period: days,
+                    medicine_date: startDate,
+                  }),
+                }
+              );
+        if (!apiRes.ok) {
+            let errorText = '';
+            try {
+              const ejson = await apiRes.json();
+              errorText = JSON.stringify(ejson);
+              console.error('복약 루틴 저장 실패 응답(JSON):', ejson);
+            } catch {
+              errorText = await apiRes.text();
+              console.error('복약 루틴 저장 실패 응답(텍스트):', errorText);
+            }
+            Alert.alert('복약 루틴 저장 실패', '서버 응답 오류\n' + errorText.slice(0, 200));
+            return;
+        }
+        console.log(apiRes);
       navigation.goBack();
     } catch (error) {
       console.error('복약 데이터 저장 실패:', error);

@@ -1,3 +1,4 @@
+    // src/pages/OnBoarding/SignUpStep3Screen.tsx
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { onboardingStyles as s } from '../../styles/Template';
